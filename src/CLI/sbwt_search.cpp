@@ -55,7 +55,6 @@ void print_LCS(const sdsl::int_vector<>& v,const string& fname) {
     csv_file.close();
 }
 
-
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt){
 
