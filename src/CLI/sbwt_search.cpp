@@ -43,7 +43,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
     out.write(&newline, 1);
 }
 
-void print_LCS(const sdsl::int_vector<>& v,const string fname) {
+void print_LCS(const sdsl::int_vector<>& v,const string& fname) {
     std::ofstream csv_file(fname);
     // Write the contents of the int_vector to the CSV file
     for (size_t i = 0; i < v.size(); i++) {
@@ -79,7 +79,7 @@ int64_t run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& 
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t new_run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS ){
+int64_t new_run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS ){
 
     int64_t new_total_micros = 0;
     int64_t new_number_of_queries = 0;
@@ -87,7 +87,7 @@ int64_t new_run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) break;
         int64_t t0 = cur_time_micros();
-        vector<pair<int64_t, int64_t>> new_search = new_streaming_search(sbwt,LCS, reader.read_buf, len);
+        vector<pair<int64_t, int64_t>> new_search = new_streaming_search(sbwt,LCS, rmqLCS,reader.read_buf, len);
         new_total_micros += cur_time_micros() - t0;
         new_number_of_queries += new_search.size();
 
@@ -148,12 +148,12 @@ int64_t run_file(const string& infile, const string& outfile, const sbwt_t& sbwt
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t new_run_file(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS){
+int64_t new_run_file(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS){
     reader_t reader(infile);
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running NEW streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return new_run_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt, LCS);
+        return new_run_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt, LCS, rmqLCS);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -198,7 +198,7 @@ int64_t run_queries(const vector<string>& infiles, const vector<string>& outfile
 }
 // Returns number of queries executed
 template<typename sbwt_t>
-int64_t new_run_queries(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS, bool gzip_output){
+int64_t new_run_queries(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS, bool gzip_output){
 
     if(infiles.size() != outfiles.size()){
         string count1 = to_string(infiles.size());
@@ -216,16 +216,16 @@ int64_t new_run_queries(const vector<string>& infiles, const vector<string>& out
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_queries_run += new_run_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, LCS, rmqLCS);
         }
         if(gzip_input && !gzip_output){
-            n_queries_run += new_run_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, LCS, rmqLCS);
         }
         if(!gzip_input && gzip_output){
-            n_queries_run += new_run_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, LCS, rmqLCS);
         }
         if(!gzip_input && !gzip_output){
-            n_queries_run += new_run_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, LCS, rmqLCS);
         }
     }
     return n_queries_run;
@@ -303,7 +303,8 @@ int search_main(int argc, char** argv){
         const int64_t k = sbwt.get_k();
         const sdsl::int_vector<>& LCS = get_kmer_lcs(sbwt.get_subset_rank_structure().A_bits, sbwt.get_subset_rank_structure().C_bits, sbwt.get_subset_rank_structure().G_bits, sbwt.get_subset_rank_structure().T_bits, k);
 //        print_LCS(LCS,outfile);
-        new_number_of_queries += new_run_queries(input_files, output_files, sbwt, LCS, gzip_output);
+        const sdsl::rmq_succinct_sct<>& rmqLCS(&LCS);
+        new_number_of_queries += new_run_queries(input_files, output_files, sbwt, LCS, rmqLCS, gzip_output);
     }
     if (variant == "rrr-matrix"){
         rrr_matrix_sbwt_t sbwt;

@@ -15,7 +15,6 @@
 using namespace std;
 using namespace sbwt;
 
-
 int64_t get_char_idx(char c){
     switch(c){
         case 'A': return 0;
@@ -29,7 +28,7 @@ int64_t get_char_idx(char c){
 // Returns pairs (a_1, b_1), (a_2, b_2)..., such that 
 // - a_i is the length of the longest match ending at query[i]
 // - b_i is the colex rank of one arbitrary k-mer having the longest match.
-vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const char* input, int64_t len){ //
+vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS, const char* input, int64_t len){ //
     const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;
     const sdsl::bit_vector& C_bits = sbwt.get_subset_rank_structure().C_bits;
     const sdsl::bit_vector& G_bits = sbwt.get_subset_rank_structure().G_bits;
@@ -46,8 +45,6 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
 //    cout << " Extracting C array"<< endl;
     const vector<int64_t>& C = sbwt.get_C_array();
 
-    const sdsl::rmq_succinct_sct<> rmqLCS(&LCS);
-
     vector<pair<int64_t,int64_t> > ans;
     const sdsl::bit_vector* DNA_bitvectors[4] = {&A_bits, &C_bits, &G_bits, &T_bits};
     const sdsl::rank_support_v5<>* DNA_rs[4] = {&A_bits_rs, &C_bits_rs, &G_bits_rs, &T_bits_rs};
@@ -61,7 +58,9 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
     int64_t curr_pos = start;
     int64_t match_len = 0;
     for(int64_t i = 0; i < len; i++){
-        
+//        for (auto res :ans){
+//            cout<< res.first << "  and " << res.second << endl;
+//        }
         char c = static_cast<char>(input[i] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if(char_idx == -1) {// Invalid character
@@ -74,8 +73,10 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
                 curr_pos = start; // restart from the middle of the string
             }
             // CASE 1
-            if (Bit_v[curr_pos] == 1) {
+            if (Bit_v[curr_pos] == 1) { // I.second
+                //match_len = ((match_len) < k ? match_len + 1 : k); //  no need to chek since the max length of LCS if k-1, no kmers are the same
                 match_len += (match_len < k);
+                //match_len += -(match_len < k) & 1;
                 curr_pos = C[char_idx] + Bit_rs(curr_pos);
             } else {
                 // CASE 2
@@ -117,7 +118,7 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
                     //match_len = (l_lcs <= match_len) ? l_lcs + 1 : match_len + 1;
                     match_len -= -(match_len > l_lcs) & (match_len - l_lcs); //1234 add ++
                     curr_pos = C[char_idx] + Bit_rs(l);
-                } else { // if the char is a DNA char but it is not in the input SBWT
+                } else { // if the char is a DNA char but is not in the input SBWT
                     match_len = -1;
                     curr_pos = -1;
                 }
