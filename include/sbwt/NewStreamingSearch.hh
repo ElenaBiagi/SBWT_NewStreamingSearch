@@ -12,6 +12,7 @@
 
 #include "suffix_group_optimization.hh"
 
+
 using namespace std;
 using namespace sbwt;
 
