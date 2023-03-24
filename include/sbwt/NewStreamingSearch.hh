@@ -15,18 +15,6 @@
 using namespace std;
 using namespace sbwt;
 
-// STREAMING SEARCH
-// Search the first k-mer -> backward search until you find some match (of len k)
-// position i = last position at which a match has been found
-// char c = char at position i+1
-// scan the SBWT matrix at bitvector c from i to the left until 1 is met, then to the right
-// get max LCS (RMQ)
-// C[1st char]+rank in matrix bits up to right or left depending on lcs
-// i'= pos of the next kmer (+1 len match) but you are allowed to drop the first char of the previous match
-// COLEX-ORDER
-
-// if match is long k you have to store the kmer found??
-// once you get the pos of the next kmer you can start again with that as i
 
 int64_t get_char_idx(char c){
     switch(c){
@@ -73,9 +61,7 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
     int64_t curr_pos = start;
     int64_t match_len = 0;
     for(int64_t i = 0; i < len; i++){
-//        for (auto res :ans){
-//            cout<< res.first << "  and " << res.second << endl;
-//        }
+        
         char c = static_cast<char>(input[i] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if(char_idx == -1) {// Invalid character
@@ -88,10 +74,8 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
                 curr_pos = start; // restart from the middle of the string
             }
             // CASE 1
-            if (Bit_v[curr_pos] == 1) { // I.second
-                //match_len = ((match_len) < k ? match_len + 1 : k); //  no need to chek since the max length of LCS if k-1, no kmers are the same
+            if (Bit_v[curr_pos] == 1) {
                 match_len += (match_len < k);
-                //match_len += -(match_len < k) & 1;
                 curr_pos = C[char_idx] + Bit_rs(curr_pos);
             } else {
                 // CASE 2
@@ -133,7 +117,7 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
                     //match_len = (l_lcs <= match_len) ? l_lcs + 1 : match_len + 1;
                     match_len -= -(match_len > l_lcs) & (match_len - l_lcs); //1234 add ++
                     curr_pos = C[char_idx] + Bit_rs(l);
-                } else { // if the char is a DNA char but is not in the input SBWT
+                } else { // if the char is a DNA char but it is not in the input SBWT
                     match_len = -1;
                     curr_pos = -1;
                 }
@@ -147,7 +131,3 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
 //vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query) {
 //    return new_streaming_search(sbwt, LCS, query.c_str(), query.size());
 //}
-    // C[1st char]+rank in matrix bits up to right or left depending on lcs
-
-    //start with one occurrence
-    // scan the bitvector of the next char to the right
