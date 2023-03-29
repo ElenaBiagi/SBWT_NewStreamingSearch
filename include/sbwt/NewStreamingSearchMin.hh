@@ -8,28 +8,40 @@
 #include "variants.hh"
 #include "sdsl/vectors.hpp"
 #include "sdsl/int_vector.hpp"
-#include "sdsl/rmq_support.hpp"
 
 #include "suffix_group_optimization.hh"
-
 
 using namespace std;
 using namespace sbwt;
 
-int64_t get_char_idx(char c){
-    switch(c){
-        case 'A': return 0;
-        case 'C': return 1;
-        case 'G': return 2;
-        case 'T': return 3;
-        default: return -1;
-    }
-}
+// STREAMING SEARCH
+// Search the first k-mer -> backward search until you find some match (of len k)
+// position i = last position at which a match has been found
+// char c = char at position i+1
+// scan the SBWT matrix at bitvector c from i to the left until 1 is met, then to the right
+// get max LCS (RMQ)
+// C[1st char]+rank in matrix bits up to right or left depending on lcs
+// i'= pos of the next kmer (+1 len match) but you are allowed to drop the first char of the previous match
+// COLEX-ORDER
+
+// if match is long k you have to store the kmer found??
+// once you get the pos of the next kmer you can start again with that as i
+
+// defined in NewStreamingSearchRMQ.hh
+//int64_t get_char_idx(char c){
+//    switch(c){
+//        case 'A': return 0;
+//        case 'C': return 1;
+//        case 'G': return 2;
+//        case 'T': return 3;
+//        default: return -1;
+//    }
+//}
 
 // Returns pairs (a_1, b_1), (a_2, b_2)..., such that 
 // - a_i is the length of the longest match ending at query[i]
 // - b_i is the colex rank of one arbitrary k-mer having the longest match.
-vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS, const char* input, int64_t len){ //
+vector<pair<int64_t,int64_t> > new_streaming_search_min(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const char* input, int64_t len){ //
     const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;
     const sdsl::bit_vector& C_bits = sbwt.get_subset_rank_structure().C_bits;
     const sdsl::bit_vector& G_bits = sbwt.get_subset_rank_structure().G_bits;
@@ -45,6 +57,7 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
 
 //    cout << " Extracting C array"<< endl;
     const vector<int64_t>& C = sbwt.get_C_array();
+
 
     vector<pair<int64_t,int64_t> > ans;
     const sdsl::bit_vector* DNA_bitvectors[4] = {&A_bits, &C_bits, &G_bits, &T_bits};
@@ -82,16 +95,17 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
             } else {
                 // CASE 2
                 int64_t r = curr_pos - 1, l = curr_pos + 1;
-                while (r >= 0 && !Bit_v[r]) {
+                int64_t r_lcs = k,  l_lcs = k; // maximum possible match
+                while(r >= 0 && !Bit_v[r]){
+                    if (LCS[r-1]< r_lcs){r_lcs = LCS[r-1];}
                     r--;
                 }
-                while (l < bit_len && !Bit_v[l]) {
+                while(l < bit_len && !Bit_v[l]){
+                    if (LCS[l]< l_lcs){l_lcs = LCS[l];}
                     l++;
                 }
-                if (r >= 0){
-                    if (l < bit_len) { // both ok
-                        uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
-                        uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
+                if (r >= 0) [[likely]]{
+                    if (l < bit_len) [[likely]]{ // both ok
                         int64_t next_lcs = r_lcs;
                         next_lcs += -(r_lcs > l_lcs) & (l_lcs - r_lcs);
 
@@ -109,13 +123,11 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
                         int64_t next_pos = l ^ ((r ^ l) & -(r_lcs > l_lcs));
                         curr_pos = C[char_idx] + Bit_rs(next_pos);
                     } else { // r ok
-                        uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
                         //match_len = (r_lcs <= match_len) ? r_lcs + 1 : match_len + 1;
                         match_len -= -(match_len > r_lcs) & (match_len-r_lcs); // add ++
                         curr_pos = C[char_idx] + Bit_rs(r);
                     }
                 } else if (l < bit_len) { // l ok
-                    uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
                     //match_len = (l_lcs <= match_len) ? l_lcs + 1 : match_len + 1;
                     match_len -= -(match_len > l_lcs) & (match_len - l_lcs); //1234 add ++
                     curr_pos = C[char_idx] + Bit_rs(l);
@@ -133,3 +145,7 @@ vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& s
 //vector<pair<int64_t,int64_t> > new_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query) {
 //    return new_streaming_search(sbwt, LCS, query.c_str(), query.size());
 //}
+    // C[1st char]+rank in matrix bits up to right or left depending on lcs
+
+    //start with one occurrence
+    // scan the bitvector of the next char to the right
