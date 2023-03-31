@@ -64,7 +64,7 @@ int64_t run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& 
     int64_t number_of_queries = 0;
     while(true){
         int64_t len = reader.get_next_read_to_buffer();
-        if(len == 0) break;
+        if(len == 0) [[unlikely]] {break;}
 
         int64_t t0 = cur_time_micros();
         vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
@@ -92,15 +92,13 @@ int64_t new_run_queries_streaming_rmq(reader_t& reader, const sbwt_t& sbwt, cons
         new_total_micros += cur_time_micros() - t0;
         new_number_of_queries += new_search.size();
 
-        //print the vector
-//        for (auto p :new_search){ cout << p.first << " , "<< p.second<< endl;}
-
         // test
 //        vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
-//        const int64_t k = sbwt.get_k();
 //        for (uint64_t q = 0; q < out_buffer.size();q++){
 //            if (out_buffer[q]!=-1){
-//                assert(new_search[q].first == k & new_search[q].second == out_buffer[q]);
+//                if(new_search[q].first == k & new_search[q].second == out_buffer[q]){
+//                    cerr << "Error old and new are not the same in pos" << q<< " old = "<< out_buffer[q]<< " new = " << new_search[q].first << ","<< new_search[q].second << endl;
+//                }
 //            }
 //        }
     }
@@ -108,7 +106,7 @@ int64_t new_run_queries_streaming_rmq(reader_t& reader, const sbwt_t& sbwt, cons
     return new_number_of_queries;
 }
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t new_run_queries_streaming_min(reader_t& reader, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS){
+int64_t new_run_queries_streaming_min(reader_t& reader, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS){
 
     int64_t new_total_micros = 0;
     int64_t new_number_of_queries = 0;
@@ -116,16 +114,17 @@ int64_t new_run_queries_streaming_min(reader_t& reader, const sbwt_t& sbwt, cons
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) break;
         int64_t t0 = cur_time_micros();
-        vector<pair<int64_t, int64_t>> new_search = new_streaming_search_min(sbwt, LCS, reader.read_buf, len);
+        vector<pair<int64_t, int64_t>> new_search = new_streaming_search_min( DNA_bitvectors, DNA_rs, bit_len, C, k,LCS,reader.read_buf, len);
         new_total_micros += cur_time_micros() - t0;
         new_number_of_queries += new_search.size();
 
         // test
 //        vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
-//        const int64_t k = sbwt.get_k();
 //        for (uint64_t q = 0; q < out_buffer.size();q++){
 //            if (out_buffer[q]!=-1){
-//                assert(new_search[q].first == k & new_search[q].second == out_buffer[q]);
+//                if(new_search[q].first == k & new_search[q].second == out_buffer[q]){
+//                    cerr << "Error old and new are not the same in pos" << q<< " old = "<< out_buffer[q]<< " new = " << new_search[q].first << ","<< new_search[q].second << endl;
+//                }
 //            }
 //        }
     }
@@ -138,7 +137,7 @@ int64_t run_queries_not_streaming(reader_t& reader, writer_t& writer, const sbwt
 
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
-    int64_t k = sbwt.get_k();
+    const int64_t k = sbwt.get_k();
     vector<int64_t> out_buffer;
     while(true){
         int64_t len = reader.get_next_read_to_buffer();
@@ -188,12 +187,12 @@ int64_t new_run_file_rmq(const string& infile, const string& outfile, const sbwt
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t new_run_file_min(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS){
+int64_t new_run_file_min(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS){
     reader_t reader(infile);
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running NEW streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return new_run_queries_streaming_min<sbwt_t, reader_t, writer_t>(reader, sbwt, LCS);
+        return new_run_queries_streaming_min<sbwt_t, reader_t, writer_t>(reader, sbwt,DNA_bitvectors, DNA_rs, bit_len, C, k, LCS);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -272,7 +271,7 @@ int64_t new_run_queries_rmq(const vector<string>& infiles, const vector<string>&
 }
 
 template<typename sbwt_t>
-int64_t new_run_queries_min(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, const sdsl::int_vector<>& LCS, bool gzip_output){
+int64_t new_run_queries_min(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS, bool gzip_output){
 
     if(infiles.size() != outfiles.size()){
         string count1 = to_string(infiles.size());
@@ -290,16 +289,16 @@ int64_t new_run_queries_min(const vector<string>& infiles, const vector<string>&
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_queries_run += new_run_file_min<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file_min<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, bit_len, C, k,LCS);
         }
         if(gzip_input && !gzip_output){
-            n_queries_run += new_run_file_min<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file_min<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt,DNA_bitvectors, DNA_rs, bit_len, C, k, LCS);
         }
         if(!gzip_input && gzip_output){
-            n_queries_run += new_run_file_min<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file_min<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt,DNA_bitvectors, DNA_rs, bit_len, C, k, LCS);
         }
         if(!gzip_input && !gzip_output){
-            n_queries_run += new_run_file_min<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, LCS);
+            n_queries_run += new_run_file_min<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, bit_len, C, k, LCS);
         }
     }
     return n_queries_run;
@@ -365,13 +364,6 @@ int search_main(int argc, char** argv){
         exit(1);
     }
 
-    string type = opts["type"].as<string>();
-    if(std::find(types.begin(), types.end(), type) == types.end()){
-        cerr << "Error: unknown type: " << type << endl;
-        cerr << "Available types are:" << all_types_string << endl;
-        return 1;
-    }
-
     string indexfile = opts["index-file"].as<string>();
     check_readable(indexfile);
 
@@ -416,11 +408,19 @@ int search_main(int argc, char** argv){
 
         plain_matrix_sbwt_t sbwt;
         sbwt.load(in.stream);
+
+        string type = opts["type"].as<string>();
+        if(std::find(types.begin(), types.end(), type) == types.end()){
+            cerr << "Error: unknown type: " << type << endl;
+            cerr << "Available types are:" << all_types_string << endl;
+            return 1;
+        }
         if (type == "old"){
             number_of_queries += run_queries(input_files, output_files, sbwt, gzip_output);
 
             int64_t total_micros = cur_time_micros() - micros_start;
             write_log("us/query end-to-end: " + to_string((double)total_micros / number_of_queries), LogLevel::MAJOR);
+            write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
         }
         else {
             const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;
@@ -444,30 +444,35 @@ int search_main(int argc, char** argv){
 
             string LCS_file = opts["lcs"].as<string>();
             if (LCS_file.empty()) {
+                std::cout<< "LCS_file empty"<<std::endl;
                 LCS_file = outfile + "LCS.sdsl";
                 const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
                 save_v(LCS_file, LCS);
             }
             sdsl::int_vector<> LCS;
             load_v(LCS_file,LCS);
+            std::cout<< "LCS_file loaded"<<std::endl;
             //print_LCS(LCS,outfile);
 
             if (type == "new-rmq"){
                 string rmqLCS_file = opts["rmq"].as<string>();
                 if (rmqLCS_file.empty()){
+                    std::cout<< "rmqLCS_file empty"<<std::endl;
                     rmqLCS_file = outfile + "rmqLCS.sdsl";
                     const sdsl::rmq_succinct_sct<> rmqLCS(&LCS);
                     save_r(rmqLCS_file, rmqLCS);
                 }
                 sdsl::rmq_succinct_sct<> rmqLCS;
                 load_r(rmqLCS_file, rmqLCS);
+                std::cout<< "rmqLCS_file loaded"<<std::endl;
                 new_number_of_queries += new_run_queries_rmq(input_files, output_files, sbwt, DNA_bitvectors, DNA_rs, bit_len, C, k, LCS, rmqLCS, gzip_output);
             }
             else if (type == "new-min"){
-                new_number_of_queries += new_run_queries_min(input_files, output_files, sbwt, LCS, gzip_output);
+                new_number_of_queries += new_run_queries_min(input_files, output_files, sbwt, DNA_bitvectors, DNA_rs, bit_len, C, k, LCS, gzip_output);
             }
             int64_t new_total_micros = cur_time_micros() - micros_start;
             write_log("us/query end-to-end: " + to_string((double)new_total_micros / new_number_of_queries), LogLevel::MAJOR);
+            write_log("total number of queries: " + to_string(new_number_of_queries), LogLevel::MAJOR);
         }
     }
     else if (variant == "rrr-matrix"){
