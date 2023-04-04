@@ -44,6 +44,49 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
     out.write(&newline, 1);
 }
 
+template<typename writer_t>
+void write_int(writer_t& out, int64_t x) {
+    char buffer[32];
+    int64_t i = 0;
+    if(x == -1){
+        buffer[0] = '1';
+        buffer[1] = '-';
+        i = 2;
+    } else{
+        while(x > 0){
+            buffer[i++] = '0' + (x % 10);
+            x /= 10;
+        }
+    }
+    std::reverse(buffer, buffer + i);
+    //buffer[i] = ' ';
+    out.write(buffer, i);
+}
+
+// Template function to print a vector of pairs to a file
+template<typename writer_t>
+inline void print_vector_pair(const vector<pair<int64_t, int64_t>>& v, writer_t& out) {
+    char newline = '\n';
+    for (const auto& p : v) {
+        out.write("(", 1);
+        write_int(out, p.first);
+        out.write(", ", 2);
+        write_int(out, p.second);
+        out.write(");", 2);
+    }
+    out.write(&newline, 1);
+}
+
+template<typename writer_t>
+inline void print_vector_int(const vector<int64_t>& v, writer_t& out) {
+    char newline = '\n';
+    for (const auto& x : v) {
+        write_int(out, x);
+        out.write(" ", 1);
+    }
+    out.write(&newline, 1);
+}
+
 void print_LCS(const sdsl::int_vector<>& v,const string& fname) {
     std::ofstream csv_file(fname);
     // Write the contents of the int_vector to the CSV file
@@ -73,14 +116,14 @@ int64_t run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& 
         number_of_queries += out_buffer.size();
 
         // Write out
-        print_vector(out_buffer, writer);
+        print_vector_int(out_buffer, writer);
     }
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     return number_of_queries;
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t new_run_queries_streaming_rmq(reader_t& reader, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS ){
+int64_t new_run_queries_streaming_rmq(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS ){
     write_log("Inside NEW run streaming queries", LogLevel::MAJOR);
     int64_t new_total_micros = 0;
     int64_t new_number_of_queries = 0;
@@ -92,22 +135,26 @@ int64_t new_run_queries_streaming_rmq(reader_t& reader, const sbwt_t& sbwt, cons
         new_total_micros += cur_time_micros() - t0;
         new_number_of_queries += new_search.size();
 
+        print_vector_pair(new_search, writer);
+
+        //vector<pair<int64_t, int64_t>> new_search_min = new_streaming_search_min( DNA_bitvectors, DNA_rs, bit_len, C, k,LCS,reader.read_buf, len);
+
         // test
-//        vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
-//        for (uint64_t q = 0; q < out_buffer.size();q++){
-//            if (out_buffer[q]!=-1){
-//                if(new_search[q].first == k & new_search[q].second == out_buffer[q]){
-//                    cerr << "Error old and new are not the same in pos" << q<< " old = "<< out_buffer[q]<< " new = " << new_search[q].first << ","<< new_search[q].second << endl;
-//                }
-//            }
-//        }
+        vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
+        for (uint64_t q = 0; q < out_buffer.size();q++){
+            if (out_buffer[q]!=-1){
+                if(new_search[q+k-1].first != k || new_search[q+k-1].second != out_buffer[q]){
+                    cerr << "Error old and new are not the same in pos" << q<< " old = "<< out_buffer[q]<< " new = " << new_search[q+k-1].first << ","<< new_search[q+k-1].second << endl;
+                }
+            }
+        }
     }
     write_log("us/query: " + to_string((double)new_total_micros / new_number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     return new_number_of_queries;
 }
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t new_run_queries_streaming_min(reader_t& reader, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS){
-
+int64_t new_run_queries_streaming_min(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS){
+    write_log("Inside NEW run streaming queries", LogLevel::MAJOR);
     int64_t new_total_micros = 0;
     int64_t new_number_of_queries = 0;
     while(true){
@@ -117,16 +164,16 @@ int64_t new_run_queries_streaming_min(reader_t& reader, const sbwt_t& sbwt, cons
         vector<pair<int64_t, int64_t>> new_search = new_streaming_search_min( DNA_bitvectors, DNA_rs, bit_len, C, k,LCS,reader.read_buf, len);
         new_total_micros += cur_time_micros() - t0;
         new_number_of_queries += new_search.size();
-
+        print_vector_pair(new_search, writer);
         // test
-//        vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
-//        for (uint64_t q = 0; q < out_buffer.size();q++){
-//            if (out_buffer[q]!=-1){
-//                if(new_search[q].first == k & new_search[q].second == out_buffer[q]){
-//                    cerr << "Error old and new are not the same in pos" << q<< " old = "<< out_buffer[q]<< " new = " << new_search[q].first << ","<< new_search[q].second << endl;
-//                }
-//            }
-//        }
+        vector<int64_t> out_buffer = sbwt.streaming_search(reader.read_buf, len);
+        for (uint64_t q = 0; q < out_buffer.size();q++){
+            if (out_buffer[q]!=-1){
+                if(new_search[q+k-1].first != k || new_search[q+k-1].second != out_buffer[q]){
+                    cerr << "Error: old and new are not the same in pos" << q << " old = "<< out_buffer[q]<< " new = " << new_search[q+k-1].first << ","<< new_search[q+k-1].second << endl;
+                }
+            }
+        }
     }
     write_log("us/query: " + to_string((double)new_total_micros / new_number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     return new_number_of_queries;
@@ -151,7 +198,7 @@ int64_t run_queries_not_streaming(reader_t& reader, writer_t& writer, const sbwt
             out_buffer.push_back(ans);
         }
 
-        print_vector(out_buffer, writer);
+        print_vector_int(out_buffer, writer);
         out_buffer.clear();
     }
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
@@ -178,7 +225,8 @@ int64_t new_run_file_rmq(const string& infile, const string& outfile, const sbwt
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running NEW streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return new_run_queries_streaming_rmq<sbwt_t, reader_t, writer_t>(reader, sbwt,DNA_bitvectors, DNA_rs, bit_len, C, k, LCS, rmqLCS);
+        cerr << "k = "<< k << endl;
+        return new_run_queries_streaming_rmq<sbwt_t, reader_t, writer_t>(reader, writer, sbwt,DNA_bitvectors, DNA_rs, bit_len, C, k, LCS, rmqLCS);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -192,7 +240,8 @@ int64_t new_run_file_min(const string& infile, const string& outfile, const sbwt
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running NEW streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return new_run_queries_streaming_min<sbwt_t, reader_t, writer_t>(reader, sbwt,DNA_bitvectors, DNA_rs, bit_len, C, k, LCS);
+        cerr << "k = "<< k << endl;
+        return new_run_queries_streaming_min<sbwt_t, reader_t, writer_t>(reader, writer, sbwt, DNA_bitvectors, DNA_rs, bit_len, C, k, LCS);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -445,7 +494,7 @@ int search_main(int argc, char** argv){
             string LCS_file = opts["lcs"].as<string>();
             if (LCS_file.empty()) {
                 std::cout<< "LCS_file empty"<<std::endl;
-                LCS_file = outfile + "LCS.sdsl";
+                LCS_file = indexfile + "LCS.sdsl";
                 const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
                 save_v(LCS_file, LCS);
             }
@@ -458,7 +507,7 @@ int search_main(int argc, char** argv){
                 string rmqLCS_file = opts["rmq"].as<string>();
                 if (rmqLCS_file.empty()){
                     std::cout<< "rmqLCS_file empty"<<std::endl;
-                    rmqLCS_file = outfile + "rmqLCS.sdsl";
+                    rmqLCS_file = indexfile + "rmqLCS.sdsl";
                     const sdsl::rmq_succinct_sct<> rmqLCS(&LCS);
                     save_r(rmqLCS_file, rmqLCS);
                 }

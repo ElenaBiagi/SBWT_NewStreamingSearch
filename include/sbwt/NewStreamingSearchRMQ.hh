@@ -45,11 +45,11 @@ vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector**
         } else {
             const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
             const sdsl::rank_support_v5<>& Bit_rs = *(DNA_rs[char_idx]);
-            if (curr_pos == -1) {
+            if (curr_pos == -1) [[unlikely]]{
                 curr_pos = start; // restart from the middle of the string
             }
             // CASE 1
-            if (Bit_v[curr_pos] == 1) [[unlikely]]{ // I.second
+            if (Bit_v[curr_pos]) {
                 match_len += (match_len < k);
                 curr_pos = C[char_idx] + Bit_rs(curr_pos);
             } else {
@@ -61,32 +61,30 @@ vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector**
                 while (l < bit_len && !Bit_v[l]) {
                     l++;
                 }
-                if (r >= 0){
-                    if (l < bit_len) { // both ok
+                if (r >= 0) [[likely]]{
+                    if (l < bit_len ) [[likely]] { // both ok
                         uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
                         uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
-                        int64_t next_lcs = r_lcs;
-                        next_lcs += -(r_lcs > l_lcs) & (l_lcs - r_lcs);
-
-                        match_len -= -(match_len > next_lcs) & (match_len-next_lcs); // add ++
-
-                        int64_t next_pos = l ^ ((r ^ l) & -(r_lcs > l_lcs));
+                        pair<int64_t, int64_t> next = max(make_pair(r_lcs, r), make_pair(l_lcs, l));
+                        match_len = ((next.first < match_len) ? next.first : match_len) + 1; //match_len -= -(match_len > next_lcs) & (match_len-next_lcs); // add ++
+                        int64_t next_pos = next.second; //int64_t next_pos = l ^ ((r ^ l) & -(r_lcs > l_lcs));
                         curr_pos = C[char_idx] + Bit_rs(next_pos);
                     } else { // r ok
+                        cout<< "only r ok ";
                         uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
-                        match_len -= -(match_len > r_lcs) & (match_len-r_lcs); // add ++
+                        match_len = ((r_lcs <= match_len) ? r_lcs : match_len) + 1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
                         curr_pos = C[char_idx] + Bit_rs(r);
+                        cout<< curr_pos << endl;
                     }
                 } else if (l < bit_len) { // l ok
+                    cout<< "only l ok"<<endl;
                     uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
-
-                    match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
+                    match_len = ((l_lcs <= match_len) ? l_lcs : match_len)+1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
                     curr_pos = C[char_idx] + Bit_rs(l);
                 } else [[unlikely]]{ // if the char is a DNA char but is not in the input SBWT
-                    match_len = -1;
+                    match_len = 0;
                     curr_pos = -1;
                 }
-                match_len++;
             }
         }
         ans.push_back({match_len,curr_pos});
