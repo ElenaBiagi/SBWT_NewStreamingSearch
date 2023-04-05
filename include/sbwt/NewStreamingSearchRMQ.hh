@@ -70,14 +70,14 @@ vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector**
                         int64_t next_pos = next.second; //int64_t next_pos = l ^ ((r ^ l) & -(r_lcs > l_lcs));
                         curr_pos = C[char_idx] + Bit_rs(next_pos);
                     } else { // r ok
-                        cout<< "only r ok ";
+                        //cout<< "only r ok ";
                         uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
                         match_len = ((r_lcs <= match_len) ? r_lcs : match_len) + 1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
                         curr_pos = C[char_idx] + Bit_rs(r);
-                        cout<< curr_pos << endl;
+                        //cout<< curr_pos << endl;
                     }
                 } else if (l < bit_len) { // l ok
-                    cout<< "only l ok"<<endl;
+                    //cout<< "only l ok"<<endl;
                     uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
                     match_len = ((l_lcs <= match_len) ? l_lcs : match_len)+1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
                     curr_pos = C[char_idx] + Bit_rs(l);

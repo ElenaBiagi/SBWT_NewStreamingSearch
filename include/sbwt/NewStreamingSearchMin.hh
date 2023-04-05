@@ -58,16 +58,17 @@ vector<pair<int64_t,int64_t> > new_streaming_search_min(const sdsl::bit_vector**
                 curr_pos = C[char_idx] + Bit_rs(curr_pos+1)-1;
             } else {
                 // CASE 2
-                int64_t r = curr_pos , l = curr_pos ;
+                int64_t r = curr_pos , l = curr_pos + 1 ;
                 int64_t r_lcs = LCS[curr_pos],  l_lcs = k-1; // maximum possible match
                 while(r >= 0 && !Bit_v[r]){
                     if (LCS[r]< r_lcs ){r_lcs = LCS[r];}
                     r--;
                 }
                 while(l < bit_len && !Bit_v[l]){
-                    if (LCS[l+1]< l_lcs){l_lcs = LCS[l+1];}
+                    if (LCS[l]< l_lcs){l_lcs = LCS[l];}
                     l++;
                 }
+                if (l < bit_len && LCS[l]< l_lcs){l_lcs = LCS[l];}
                 if (r >= 0) [[likely]]{
                     if (l < bit_len) [[likely]]{ // both ok
                         pair<int64_t, int64_t> next = max(make_pair(r_lcs, r), make_pair(l_lcs, l));
