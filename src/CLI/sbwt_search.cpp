@@ -18,32 +18,6 @@ using namespace std;
 using namespace sbwt;
 
 
-
-// Assumes values of v are -1 or larger
-template <typename writer_t>
-inline void print_vector(const vector<int64_t>& v, writer_t& out){
-    // Fast manual integer-to-string conversion
-    char buffer[32];
-    char newline = '\n';
-    for(int64_t x : v){
-        int64_t i = 0;
-        if(x == -1){
-            buffer[0] = '1';
-            buffer[1] = '-';
-            i = 2;
-        } else{
-            while(x > 0){
-                buffer[i++] = '0' + (x % 10);
-                x /= 10;
-            }
-        }
-        std::reverse(buffer, buffer + i);
-        buffer[i] = ' ';
-        out.write(buffer, i+1);
-    }
-    out.write(&newline, 1);
-}
-
 template<typename writer_t>
 void write_int(writer_t& out, int64_t x) {
     char buffer[32];
@@ -144,7 +118,7 @@ int64_t new_run_queries_streaming_rmq(reader_t& reader, writer_t& writer, const 
         for (uint64_t q = 0; q < out_buffer.size();q++){
             if (out_buffer[q]!=-1){
                 if(new_search[q+k-1].first != k || new_search[q+k-1].second != out_buffer[q]){
-                    cerr << "Error old and new are not the same in pos" << q<< " old = "<< out_buffer[q]<< " new = " << new_search[q+k-1].first << ","<< new_search[q+k-1].second << endl;
+                    cerr << "Error old and new are not the same in pos" << q << " old = "<< out_buffer[q]<< " new = " << new_search[q+k-1].first << ","<< new_search[q+k-1].second << endl;
                 }
             }
         }
