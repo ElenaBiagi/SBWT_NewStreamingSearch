@@ -15,6 +15,7 @@
 using namespace std;
 using namespace sbwt;
 
+// Already defined in SBWT.hh
 int64_t get_char_idx(char c){
     switch(c){
         case 'A': return 0;
@@ -28,13 +29,15 @@ int64_t get_char_idx(char c){
 // Returns pairs (a_1, b_1), (a_2, b_2)..., such that
 // - a_i is the length of the longest match ending at query[i]
 // - b_i is the colex rank of one arbitrary k-mer having the longest match.
-vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const int64_t bit_len, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS, const char* input, int64_t len){ //const plain_matrix_sbwt_t& sbwt
+vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS, const char* input, const int64_t len){ //const plain_matrix_sbwt_t& sbwt
     // Search the first char
     // Start from the middle of the string
     vector<pair<int64_t,int64_t> > ans;
-    int64_t start = bit_len/2;
+
+    const int64_t bit_len = DNA_bitvectors[0]->size();
+    const int64_t start = bit_len/2;
     int64_t curr_pos = start;
-    int64_t match_len = 0;
+    uint64_t match_len = 0;
     for(int64_t i = 0; i < len; i++){
 
         char c = static_cast<char>(input[i] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
@@ -54,32 +57,55 @@ vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector**
                 curr_pos = C[char_idx] + Bit_rs(curr_pos);
             } else {
                 // CASE 2
-                int64_t r = curr_pos - 1, l = curr_pos + 1;
-                while (r >= 0 && !Bit_v[r]) {
-                    r--;
+                int64_t r = -1;
+                int64_t r_index = curr_pos - 1;
+                while (r_index > 0){
+                    int word_len_r = std::min((int64_t)64, r_index);
+                    int word_start_r = std::max((int64_t)0, (r_index-63));
+                    uint64_t word_r = Bit_v.get_int(word_start_r, word_len_r);
+                    if (word_r == 0) {
+                        r_index -=word_len_r;
+                    } else {
+                        int leading_zeros= __builtin_clzll(word_r) - (64 - word_len_r); // count number of leading zeros
+                        r = (r_index  - leading_zeros);
+                        r = (r < 64) ? r -1 : r;
+                        break;
+                    }
                 }
-                while (l < bit_len && !Bit_v[l]) {
-                    l++;
+
+                int64_t l = bit_len;
+                int64_t l_index = curr_pos + 1;
+                while (l_index < bit_len){
+                    int word_len_l = std::min(bit_len-l_index-2, (int64_t)64);
+                    uint64_t word_l = Bit_v.get_int(l_index, word_len_l);
+                    std::bitset<64> x(word_l);
+                    if (word_l == 0) {
+                        l_index +=word_len_l;
+                    } else {
+                        int trailing_zeros= __builtin_ctzll(word_l);
+                        l = (l_index  + trailing_zeros);
+                        break;
+                    }
                 }
+
                 if (r >= 0) [[likely]]{
                     if (l < bit_len ) [[likely]] { // both ok
                         uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
                         uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
-                        pair<int64_t, int64_t> next = max(make_pair(r_lcs, r), make_pair(l_lcs, l));
-                        match_len = ((next.first < match_len) ? next.first : match_len) + 1; //match_len -= -(match_len > next_lcs) & (match_len-next_lcs); // add ++
-                        int64_t next_pos = next.second; //int64_t next_pos = l ^ ((r ^ l) & -(r_lcs > l_lcs));
-                        curr_pos = C[char_idx] + Bit_rs(next_pos);
+
+                        uint64_t max_lcs = max(r_lcs, l_lcs);
+                        match_len = min(match_len, max_lcs) + 1;
+                        int64_t next_dir = (max_lcs == r_lcs) ? r : l;
+                        curr_pos = C[char_idx] + Bit_rs(next_dir);
+
                     } else { // r ok
-                        //cout<< "only r ok ";
                         uint64_t r_lcs = LCS[rmqLCS(r + 1, curr_pos)];
-                        match_len = ((r_lcs <= match_len) ? r_lcs : match_len) + 1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
+                        match_len = min(match_len, r_lcs) + 1;//((r_lcs <= match_len) ? r_lcs : match_len) + 1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
                         curr_pos = C[char_idx] + Bit_rs(r);
-                        //cout<< curr_pos << endl;
                     }
                 } else if (l < bit_len) { // l ok
-                    //cout<< "only l ok"<<endl;
                     uint64_t l_lcs = LCS[rmqLCS(curr_pos + 1, l)];
-                    match_len = ((l_lcs <= match_len) ? l_lcs : match_len)+1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
+                    match_len = min(match_len, l_lcs) + 1;//((l_lcs <= match_len) ? l_lcs : match_len)+1; // match_len -= -(match_len > l_lcs) & (match_len - l_lcs); // add ++
                     curr_pos = C[char_idx] + Bit_rs(l);
                 } else [[unlikely]]{ // if the char is a DNA char but is not in the input SBWT
                     match_len = 0;
