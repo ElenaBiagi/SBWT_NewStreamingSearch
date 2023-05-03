@@ -57,11 +57,12 @@ vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector**
                 curr_pos = C[char_idx] + Bit_rs(curr_pos);
             } else {
                 // CASE 2
+                // right = up
                 int64_t r = -1;
                 int64_t r_index = curr_pos - 1;
                 while (r_index > 0){
-                    int word_len_r = std::min((int64_t)64, r_index);
-                    int word_start_r = std::max((int64_t)0, (r_index-63));
+                    int word_len_r = std::min((int64_t)64, r_index+1);
+                    int64_t word_start_r = std::max((int64_t)0, (r_index-63));
                     uint64_t word_r = Bit_v.get_int(word_start_r, word_len_r);
                     if (word_r == 0) {
                         r_index -=word_len_r;
@@ -72,11 +73,11 @@ vector<pair<int64_t,int64_t> > new_streaming_search_rmq(const sdsl::bit_vector**
                         break;
                     }
                 }
-
+                // left = down
                 int64_t l = bit_len;
                 int64_t l_index = curr_pos + 1;
                 while (l_index < bit_len){
-                    int word_len_l = std::min(bit_len-l_index-2, (int64_t)64);
+                    int word_len_l = std::min(bit_len-l_index, (int64_t)64);
                     uint64_t word_l = Bit_v.get_int(l_index, word_len_l);
                     std::bitset<64> x(word_l);
                     if (word_l == 0) {
