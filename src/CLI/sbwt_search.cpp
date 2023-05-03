@@ -97,7 +97,7 @@ int64_t run_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& 
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t new_run_queries_streaming_rmq(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS, const sdsl::rmq_succinct_sct<>& rmqLCS ){
-    write_log("Inside NEW run streaming queries", LogLevel::MAJOR);
+    write_log("Inside NEW RMQ run streaming queries", LogLevel::MAJOR);
     int64_t new_total_micros = 0;
     int64_t new_number_of_queries = 0;
     while(true){
@@ -128,7 +128,7 @@ int64_t new_run_queries_streaming_rmq(reader_t& reader, writer_t& writer, const 
 }
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t new_run_queries_streaming_min(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const vector<int64_t>& C, const int64_t k, const sdsl::int_vector<>& LCS){
-    write_log("Inside NEW run streaming queries", LogLevel::MAJOR);
+    write_log("Inside NEW MIN run streaming queries", LogLevel::MAJOR);
     int64_t new_total_micros = 0;
     int64_t new_number_of_queries = 0;
     while(true){
@@ -487,7 +487,7 @@ int search_main(int argc, char** argv){
                 }
                 sdsl::rmq_succinct_sct<> rmqLCS;
                 load_r(rmqLCS_file, rmqLCS);
-                std::cout<< "rmqLCS_file loaded"<<std::endl;
+                std::cerr<< "rmqLCS_file loaded"<<std::endl;
                 new_number_of_queries += new_run_queries_rmq(input_files, output_files, sbwt, DNA_bitvectors, DNA_rs, C, k, LCS, rmqLCS, gzip_output);
             }
             else if (type == "new-min"){
