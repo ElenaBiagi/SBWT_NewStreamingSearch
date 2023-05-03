@@ -57,17 +57,45 @@ vector<pair<int64_t,int64_t> > new_streaming_search_min(const sdsl::bit_vector**
                 curr_pos = C[char_idx] + Bit_rs(curr_pos+1)-1;
             } else {
                 // CASE 2
-                int64_t r = curr_pos -1, l = curr_pos + 1 ;
-                uint64_t r_lcs = LCS[curr_pos],  l_lcs = LCS[curr_pos + 1]; // maximum possible match
-                while(r >= 0 && !Bit_v[r]){
-                    r_lcs = min(r_lcs, LCS[r]);
-                    //if (LCS[r]< r_lcs ){r_lcs = LCS[r];}
-                    r--;
+                int64_t r = -1;
+                int64_t r_index = curr_pos - 1;
+                while (r_index > 0){
+                    int word_len_r = std::min((int64_t)64, r_index+1);
+                    int64_t word_start_r = std::max((int64_t)0, (r_index-63));
+                    uint64_t word_r = Bit_v.get_int(word_start_r, word_len_r);
+                    if (word_r == 0) {
+                        r_index -=word_len_r;
+                    } else {
+                        int leading_zeros= __builtin_clzll(word_r) - (64 - word_len_r); // count number of leading zeros
+                        r = (r_index  - leading_zeros);
+                        break;
+                    }
                 }
-                while(l < bit_len-1 && !Bit_v[l]){
-                    l_lcs = min(l_lcs, LCS[l+1]);
-                    //if (LCS[l+1]< l_lcs){l_lcs = LCS[l+1];}
-                    l++;
+                int64_t l = bit_len;
+                int64_t l_index = curr_pos + 1;
+                while (l_index < bit_len){
+                    int word_len_l = std::min(bit_len-l_index, (int64_t)64);// bit_len-l_index-2 bitlen expluded
+                    uint64_t word_l = Bit_v.get_int(l_index, word_len_l);
+                    std::bitset<64> x(word_l);
+                    if (word_l == 0) {
+                        l_index +=word_len_l;
+                    } else {
+                        int trailing_zeros= __builtin_ctzll(word_l);
+                        l = (l_index  + trailing_zeros);
+                        break;
+                    }
+                }
+                uint64_t new_r = curr_pos -1, new_l = curr_pos + 1 ;
+                uint64_t r_lcs = LCS[curr_pos],  l_lcs = LCS[curr_pos + 1]; // maximum possible match
+
+                while( new_r > r){
+                    r_lcs = min(r_lcs, LCS[new_r]);
+                    new_r--;
+                }
+
+                while(new_l < l){
+                    l_lcs = min(l_lcs, LCS[new_l+1]);
+                    new_l++;
                 }
                 if (r >= 0) [[likely]]{
                     if (l < bit_len) [[likely]]{ // both ok
