@@ -13,7 +13,7 @@ apt-get update
 apt-get install -y g++ gcc cmake git python3-dev g++-8 libz-dev libbz2-dev
 git clone https://github.com/algbio/SBWT
 cd SBWT/build
-cmake .. -DCMAKE_CXX_COMPILER=g++-8 -DMAX_KMER_LENGTH=32
+cmake .. -DCMAKE_CXX_COMPILER=g++ -DMAX_KMER_LENGTH=32
 make -j8
 ```
 
